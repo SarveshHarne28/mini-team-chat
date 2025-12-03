@@ -5,7 +5,7 @@ import ChannelList from '../components/ChannelList';
 import CreateChannel from '../components/CreateChannel';
 import { useNavigate } from 'react-router-dom';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
 
 export default function Home() {
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -24,7 +24,7 @@ export default function Home() {
     };
     init();
 
-    const s = io(SOCKET_URL);
+    const s = io(SOCKET_URL, { transports: ['websocket'] });
     setSocket(s);
     const user = JSON.parse(localStorage.getItem('user'));
     if (user) s.emit('identify', { userId: user.id });
