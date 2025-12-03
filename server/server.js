@@ -1,3 +1,4 @@
+// server/server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,7 +8,9 @@ const pool = require('./db');
 
 dotenv.config();
 const app = express();
-app.use(cors());
+
+// Use FRONTEND_ORIGIN for CORS (falls back to allow all in dev)
+app.use(cors({ origin: process.env.FRONTEND_ORIGIN || '*' }));
 app.use(express.json());
 
 const authRoutes = require('./routes/auth');
@@ -22,7 +25,11 @@ app.use('/api/users', userRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: {
+    origin: process.env.FRONTEND_ORIGIN || '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
 });
 
 // Map of socketId -> userId
@@ -58,19 +65,27 @@ io.on('connection', (socket) => {
 
   socket.on('send_message', async ({ channelId, userId, text }) => {
     try {
-      const [result] = await pool.query('INSERT INTO messages (channel_id, user_id, text) VALUES (?, ?, ?)', [channelId, userId, text]);
-      const [rows] = await pool.query('SELECT m.*, u.name as sender_name FROM messages m JOIN users u ON u.id = m.user_id WHERE m.id = ?', [result.insertId]);
+      const [result] = await pool.query(
+        'INSERT INTO messages (channel_id, user_id, text) VALUES (?, ?, ?)',
+        [channelId, userId, text]
+      );
+      const [rows] = await pool.query(
+        'SELECT m.*, u.name as sender_name FROM messages m JOIN users u ON u.id = m.user_id WHERE m.id = ?',
+        [result.insertId]
+      );
       const message = rows[0];
       // Broadcast to channel room
       io.to(`channel_${channelId}`).emit('new_message', message);
     } catch (err) {
       console.error('save msg error', err);
       socket.emit('error', { message: 'Message not saved' });
+    }
+  });
+
   // Delivery/read receipts: when clients receive or view messages they notify server.
   socket.on('message_delivered', async ({ messageId, userId }) => {
-    // messageId: id of message that was delivered to this user, userId: the receiver's id
     try {
-      // create a receipts table entry if not exists (safe if table already exists)
+      // create receipts table if missing (safe)
       await pool.query(`
         CREATE TABLE IF NOT EXISTS message_receipts (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -81,17 +96,18 @@ io.on('connection', (socket) => {
           UNIQUE KEY uq_message_user (message_id, user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
+
       await pool.query(
         `INSERT INTO message_receipts (message_id, user_id, delivered_at)
          VALUES (?, ?, NOW())
          ON DUPLICATE KEY UPDATE delivered_at = LEAST(IFNULL(delivered_at, NOW()), NOW())`,
         [messageId, userId]
       );
+
       // notify sender that this user has delivered the message
       const [[msgRow]] = await pool.query('SELECT user_id FROM messages WHERE id = ?', [messageId]);
       const senderId = msgRow ? msgRow.user_id : null;
       if (senderId) {
-        // emit to sender sockets only
         const sset = userSockets.get(senderId);
         if (sset) {
           for (const sid of sset) {
@@ -106,6 +122,7 @@ io.on('connection', (socket) => {
 
   socket.on('message_read', async ({ messageId, userId }) => {
     try {
+      // create receipts table if missing (safe)
       await pool.query(`
         CREATE TABLE IF NOT EXISTS message_receipts (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -116,12 +133,14 @@ io.on('connection', (socket) => {
           UNIQUE KEY uq_message_user (message_id, user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
+
       await pool.query(
         `INSERT INTO message_receipts (message_id, user_id, read_at)
          VALUES (?, ?, NOW())
          ON DUPLICATE KEY UPDATE read_at = LEAST(IFNULL(read_at, NOW()), NOW())`,
         [messageId, userId]
       );
+
       // notify sender sockets that this user read the message
       const [[msgRow]] = await pool.query('SELECT user_id FROM messages WHERE id = ?', [messageId]);
       const senderId = msgRow ? msgRow.user_id : null;
@@ -135,9 +154,6 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('message_read handler error', err);
-    }
-  });
-
     }
   });
 
