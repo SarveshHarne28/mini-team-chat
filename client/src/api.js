@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:4000/api',
+  baseURL: 'https://mini-team-chat-production.up.railway.app/api',
   timeout: 10000,
 });
 
