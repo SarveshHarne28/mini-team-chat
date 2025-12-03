@@ -5,7 +5,7 @@ import ChannelList from '../components/ChannelList';
 import CreateChannel from '../components/CreateChannel';
 import { useNavigate } from 'react-router-dom';
 
-const SOCKET_URL = 'http://localhost:4000';
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function Home() {
   const [onlineUsers, setOnlineUsers] = useState([]);

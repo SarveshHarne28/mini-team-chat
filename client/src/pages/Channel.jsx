@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import API from "../api";
 import io from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:4000";
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export default function Channel() {
   const { id } = useParams();
