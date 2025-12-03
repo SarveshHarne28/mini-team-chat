@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://mini-team-chat-production.up.railway.app/api';
+
 const API = axios.create({
-  baseURL: 'https://mini-team-chat-production.up.railway.app/api',
+  baseURL: API_BASE,
   timeout: 10000,
 });
 
