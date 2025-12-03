@@ -27,6 +27,10 @@ app.use(express.json());
 // ------------------------------------------------------------------
 app.get('/health', (req, res) => res.json({ ok: true }));
 
+app.get('/', (req, res) => {
+  res.send('Mini Team Chat backend is running. Use /health or API routes under /api/*');
+});
+
 // Do a quick DB check at startup and log the result (non-blocking)
 (async () => {
   try {
