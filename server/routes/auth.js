@@ -3,7 +3,6 @@ const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
 
 router.post('/signup', async (req, res) => {
   const { name, email, password } = req.body;
