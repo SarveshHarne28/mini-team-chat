@@ -1,0 +1,8 @@
+{
+  "name": "mini-team-chat",
+  "private": true,
+  "scripts": {
+    "start": "cd server && npm install --no-audit --no-fund && npm start",
+    "build": "cd client && npm install --no-audit --no-fund && npm run build"
+  }
+}
