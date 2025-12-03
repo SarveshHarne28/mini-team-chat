@@ -1,18 +1,49 @@
 // server/server.js
+// NOTE: This file intentionally loads dotenv only in non-production environments
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const pool = require('./db');
 
-dotenv.config();
+// Top-level crash handlers (helpful for diagnosing runtime errors in logs)
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection', reason && reason.stack ? reason.stack : reason);
+});
+
 const app = express();
 
 // Use FRONTEND_ORIGIN for CORS (falls back to allow all in dev)
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || '*' }));
 app.use(express.json());
 
+// ------------------------------------------------------------------
+// Basic health & quick DB check routes (useful for deployments / probes)
+// ------------------------------------------------------------------
+app.get('/health', (req, res) => res.json({ ok: true }));
+
+// Do a quick DB check at startup and log the result (non-blocking)
+(async () => {
+  try {
+    await pool.query('SELECT 1');
+    console.log('DB connected OK');
+  } catch (err) {
+    console.error('DB connection failed at startup', err && err.stack ? err.stack : err);
+    // do not exit automatically; keep running so Railway logs show the error,
+    // but you may choose to process.exit(1) if you prefer a hard fail.
+  }
+})();
+
+// ------------------------------------------------------------------
+// Routes
+// ------------------------------------------------------------------
 const authRoutes = require('./routes/auth');
 const channelRoutes = require('./routes/channels');
 const messageRoutes = require('./routes/messages');
@@ -23,6 +54,9 @@ app.use('/api/channels', channelRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 
+// ------------------------------------------------------------------
+// HTTP + Socket.IO setup
+// ------------------------------------------------------------------
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -51,7 +85,7 @@ io.on('connection', (socket) => {
       await pool.query('UPDATE users SET online = 1 WHERE id = ?', [userId]);
       io.emit('user_online', { userId });
     } catch (err) {
-      console.error('DB error marking online', err);
+      console.error('DB error marking online', err && err.stack ? err.stack : err);
     }
   });
 
@@ -77,7 +111,7 @@ io.on('connection', (socket) => {
       // Broadcast to channel room
       io.to(`channel_${channelId}`).emit('new_message', message);
     } catch (err) {
-      console.error('save msg error', err);
+      console.error('save msg error', err && err.stack ? err.stack : err);
       socket.emit('error', { message: 'Message not saved' });
     }
   });
@@ -116,7 +150,7 @@ io.on('connection', (socket) => {
         }
       }
     } catch (err) {
-      console.error('message_delivered handler error', err);
+      console.error('message_delivered handler error', err && err.stack ? err.stack : err);
     }
   });
 
@@ -153,7 +187,7 @@ io.on('connection', (socket) => {
         }
       }
     } catch (err) {
-      console.error('message_read handler error', err);
+      console.error('message_read handler error', err && err.stack ? err.stack : err);
     }
   });
 
@@ -171,7 +205,7 @@ io.on('connection', (socket) => {
             await pool.query('UPDATE users SET online = 0 WHERE id = ?', [userId]);
             io.emit('user_offline', { userId });
           } catch (err) {
-            console.error('DB error marking offline', err);
+            console.error('DB error marking offline', err && err.stack ? err.stack : err);
           }
         }
       }
@@ -180,5 +214,6 @@ io.on('connection', (socket) => {
   });
 });
 
+// Ensure you read PORT from the environment (Railway sets this at runtime)
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`Server listening on ${PORT}`));
