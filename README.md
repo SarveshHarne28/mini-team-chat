@@ -243,19 +243,6 @@ app.use(cors({
 
 ---
 
-## 🧪 **Testing Scenarios (for your Video Submission)**
-
-* Signup / Login
-* Creating a channel
-* Sending messages between two browser tabs
-* Watching delivered ✓ and read ✓✓ update
-* Online/offline users list
-* Infinite scroll loading old messages
-* Database tables filling live
-* Deployment overview
-
----
-
 ## 👨‍💻 **Author**
 
 **Sarvesh Harne**
